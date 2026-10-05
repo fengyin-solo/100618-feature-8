@@ -43,7 +43,7 @@
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td v-for="column in columns" :key="column">{{ row[column] || '—' }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -65,6 +65,7 @@
 
     <footer class="page-foot">
       <span>共 {{ total }} 条管片生产记录</span>
+      <span>待返工环数与管片拼装页同一份取数，以拼装记录为准</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -77,18 +78,20 @@ import {
   downloadEntries,
   listEntries,
   moduleMeta,
+  moduleStats,
   runAction as applyAction,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
+// 行列、动作、状态、统计全部来自模块元数据与共享服务，和拼装页共用同一份取数。
 const meta = moduleMeta('segmentprod')
-const columns = ["管片编号", "管片型号", "生产模具", "钢筋笼批号", "养护天数", "出厂强度", "检验人员", "生产状态"]
-const actions = ["开始浇筑", "确认养护", "办理出厂"]
-const statuses = ["待浇筑", "养护中", "待出厂", "已出厂"]
-const stats = [{"label": "养护中管片", "value": 0}, {"label": "待出厂管片", "value": 0}, {"label": "本月出厂数", "value": 0}]
+const columns = meta.fields
+const actions = meta.actions
+const statuses = meta.statuses
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
+const stats = ref<{ label: string; value: number }[]>([])
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
@@ -128,6 +131,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    stats.value = moduleStats(meta.key)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '管片生产列表读取失败'
   }

@@ -68,4 +68,16 @@ npm run build
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 读写纪律：`localStorage` 里那份是唯一准数。读永远读落库那份；写先落库再算成功，
+  落库失败整笔退回、就地撤销，不允许只落一半。
+- 管片拼装（`segment`）的专属规则也在 `local-service.ts`：
+  - 进度只许 `待拼装 → 拼装中 → 已验收` 顺序流转；`登记返工` 清空复核意见并退回 `待拼装`，
+    跳步一律驳回并说明缺哪一步。
+  - 同一管片环重复提交验收只落一条；同环号重复登记被驳回；连点不会多出返工单。
+  - 只有记录上的拼装班组能改拼装点位，跨班组操作一律打回。
+  - 返工结论同事务回写管片生产（`segmentprod`）的出厂待办；待返工环数以拼装记录为准，
+    两个页面共用 `segmentReworkCount()` 这一个取数。
+  - 存量管片环在模块加载时按拼装日期重新过一遍（排序、去重、清掉挂着的中间结论），
+    迁移幂等，见 `migrateSegmentRows()`。
+- 拼装记录服务层冒烟测试：`cd frontend && npm run test:segment`。
 - 想回到初始数据：清掉浏览器里 `shield-tunnel-construction:entries` 这一项，或调用 `resetModule(模块)`。
