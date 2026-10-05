@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>管片生产管理</h2>
-        <p class="page-desc">维护管片，围绕管片编号、管片型号、生产模具、钢筋笼批号做登记、筛选与状态流转。</p>
+        <p class="page-desc">维护管片，围绕管片编号、管片型号、生产模具、钢筋笼批号做登记、筛选与状态流转；出厂待办直接读管片拼装那边落库的返工结论，两处共用同一份取数。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记管片</button>
@@ -12,7 +12,7 @@
     </header>
 
     <div class="stat-row">
-      <article v-for="item in stats" :key="item.label" class="stat-card">
+      <article v-for="item in stats" :key="item.label" class="stat-card" :class="{ highlight: item.highlight }">
         <span class="stat-label">{{ item.label }}</span>
         <strong class="stat-value">{{ item.value }}</strong>
       </article>
@@ -63,8 +63,28 @@
       </tbody>
     </table>
 
+    <h3 class="subhead">出厂待办 · 待返工管片环</h3>
+    <p class="page-desc">返工结论由「管片拼装-登记返工」回写；待返工环数与拼装页同源同值，不会出现两个数。</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>管片环号</th><th>拼装班组</th><th>返工结论</th><th>登记日期</th><th>处理状态</th></tr>
+      </thead>
+      <tbody>
+        <tr v-for="item in pendingRework" :key="String(item.ringId)">
+          <td>{{ item.管片环号 }}</td>
+          <td>{{ item.拼装班组 }}</td>
+          <td>{{ item.返工结论 }}</td>
+          <td>{{ item.登记日期 }}</td>
+          <td>待返工（重新拼装并通过验收后自动闭环）</td>
+        </tr>
+        <tr v-if="!pendingRework.length">
+          <td colspan="5" class="empty-state">暂无待返工管片环，出厂待办为空</td>
+        </tr>
+      </tbody>
+    </table>
+
     <footer class="page-foot">
-      <span>共 {{ total }} 条管片生产记录</span>
+      <span>共 {{ total }} 条管片生产记录 · 待返工环数 {{ pendingRework.length }}（与管片拼装页共用同一取数）</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -79,19 +99,30 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { pendingReworkRings } from '@/api/segment-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('segmentprod')
 const columns = ["管片编号", "管片型号", "生产模具", "钢筋笼批号", "养护天数", "出厂强度", "检验人员", "生产状态"]
 const actions = ["开始浇筑", "确认养护", "办理出厂"]
 const statuses = ["待浇筑", "养护中", "待出厂", "已出厂"]
-const stats = [{"label": "养护中管片", "value": 0}, {"label": "待出厂管片", "value": 0}, {"label": "本月出厂数", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+// 待返工环数：直接读拼装领域的同一份 selector，拼装页、生产页永远是同一个数。
+const pendingRework = computed(() => pendingReworkRings())
+
+// 统计卡全部从落库数据现场算，不再写死 0；第三张卡替换为拼装侧回写的待返工环数。
+const stats = computed(() => [
+  { label: '养护中管片', value: rows.value.filter((row) => String(row.status) === '养护中').length, highlight: false },
+  { label: '待出厂管片', value: rows.value.filter((row) => String(row.status) === '待出厂').length, highlight: false },
+  { label: '待返工管片环', value: pendingRework.value.length, highlight: true },
+])
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,

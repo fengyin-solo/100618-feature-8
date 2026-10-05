@@ -1,9 +1,18 @@
+import { filterRows } from '@/api/filter'
+import {
+  listSegmentRings,
+  resetSegmentAssembly,
+} from '@/api/segment-service'
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
 const NEGATIVE_ACTIONS = ['撤销', '作废', '拒绝', '驳回', '停用', '忽略', '下线', '回滚']
+
+// 管片拼装（含验收/返工派生表）只能走 segment-service：那里有状态机、幂等、
+// 班组权限与原子提交，通用动作不允许旁路改出半笔或跨口径的状态。
+const SEGMENT_DOMAIN_KEYS = new Set(['segment', 'segment_acceptance', 'segment_rework'])
 
 export function moduleMeta(key: string): ModuleMeta {
   const meta = MODULE_BY_KEY.get(key)
@@ -13,22 +22,23 @@ export function moduleMeta(key: string): ModuleMeta {
   return meta
 }
 
-export function filterRows(rows: EntryRow[], filters: Record<string, string>): EntryRow[] {
-  const pairs = Object.entries(filters).filter(([, value]) => value.trim() !== '')
-  if (pairs.length === 0) {
-    return rows
-  }
-  return rows.filter((row) =>
-    pairs.every(([field, value]) => String(row[field] ?? '').includes(value.trim())),
-  )
-}
+export { filterRows }
 
 export function listEntries(key: string, filters: Record<string, string> = {}): PageResult {
+  if (key === 'segment') {
+    // 拼装记录沿用既有读取方式（同一个 localStorage、同一份内存 cache），
+    // 先把存量迁移跑完，保证刷新、返回、重进读到的都是落库那份。
+    const items = listSegmentRings(filters)
+    return { items, total: items.length, page: 1, size: items.length }
+  }
   const matched = filterRows(listRows(key), filters)
   return { items: matched, total: matched.length, page: 1, size: matched.length }
 }
 
 export function runAction(key: string, id: number, action: string): ActionResult {
+  if (SEGMENT_DOMAIN_KEYS.has(key)) {
+    return { ok: false, message: '管片拼装的状态流转必须走拼装领域操作（开始拼装/提交验收/登记返工），通用动作已打回' }
+  }
   const meta = moduleMeta(key)
   const target = meta.actionTargets[action]
   if (!target) {
@@ -57,6 +67,10 @@ export function runAction(key: string, id: number, action: string): ActionResult
 }
 
 export function resetModule(key: string): PageResult {
+  if (key === 'segment') {
+    resetSegmentAssembly()
+    return listEntries(key)
+  }
   resetRows(key)
   return listEntries(key)
 }
@@ -65,10 +79,11 @@ export function exportEntries(key: string): { filename: string; content: string 
   const meta = moduleMeta(key)
   const header = ['编号', ...meta.fields, '当前状态']
   const lines = [header.join(',')]
-  for (const row of listRows(key)) {
+  const rows = key === 'segment' ? (listEntries(key).items as EntryRow[]) : listRows(key)
+  for (const row of rows) {
     lines.push([row.id, ...meta.fields.map((field) => row[field] ?? ''), row.status].join(','))
   }
-  return { filename: `${meta.name}-清单.csv`, content: `\uFEFF${lines.join('\n')}` }
+  return { filename: `${meta.name}-清单.csv`, content: `﻿${lines.join('\n')}` }
 }
 
 export function downloadEntries(key: string): void {
@@ -85,6 +100,8 @@ export function downloadEntries(key: string): void {
 }
 
 export function loadOverview(): OverviewResult {
+  // 拼装表先迁移再汇总，概览与各页面看到的都是同一份落库数据。
+  listSegmentRings()
   const rows = allRows()
   const modules = [...MODULE_BY_KEY.values()].map((meta) => {
     const entries = rows[meta.key] ?? []

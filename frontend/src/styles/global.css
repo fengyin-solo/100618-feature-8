@@ -35,3 +35,19 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .error-text { color: #b42318; }
 .status-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 10px; font-size: 12px; color: var(--muted); }
 .legend-item { background: #eef2f7; border-radius: 999px; padding: 2px 10px; }
+.crew-badge { background: #e3edff; color: var(--brand); }
+.crew-switch { margin-left: 12px; }
+.crew-switch select { font-size: 12px; padding: 2px 4px; }
+.stat-card.highlight { border-color: #f0a94b; background: #fff8ee; }
+.stat-card.highlight .stat-value { color: #b45309; }
+.subhead { margin: 18px 0 6px; font-size: 15px; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal { background: #fff; border-radius: 10px; padding: 18px 20px; width: 460px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); overflow: auto; }
+.modal-title { margin: 0 0 4px; font-size: 16px; }
+.modal-tip { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.form-item { display: block; margin-bottom: 10px; }
+.form-item > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.form-item input, .form-item select, .form-item textarea { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; }
+.form-item input:disabled { background: #f1f5f9; color: var(--muted); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.link:disabled { color: #94a3b8; cursor: default; }

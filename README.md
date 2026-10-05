@@ -69,3 +69,28 @@ npm run build
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
 - 想回到初始数据：清掉浏览器里 `shield-tunnel-construction:entries` 这一项，或调用 `resetModule(模块)`。
+
+## 管片拼装领域（segment）
+
+管片拼装有独立的领域服务 `frontend/src/api/segment-service.ts`，页面与管片生产页都只读这一份：
+
+- **同一份取数**：环（`segment`）、验收记录（`segment_acceptance`）、返工单（`segment_rework`）
+  都收在既有 localStorage 键、既有内存 cache，沿用既有读取方式。任何写入先整表序列化、
+  写库成功后才更新内存；写库失败就地整笔撤销，不存在只落一半。
+- **保存成功前不回显**：管片环号、拼装点位、螺栓扭矩、错台量在弹窗里只是草稿，
+  成功落库后列表才出现新值；刷新、返回、重新进入读到的都是落库那份。
+- **进度状态机**：待拼装 → 拼装中 → 已验收，跳着改一律驳回并说明缺了哪一步。
+  登记返工把验收时的「复核意见」清空并退回待拼装，不单设「已返工」状态。
+- **幂等**：同一环同一轮重复提交验收只落一条验收记录；未闭环返工单存在时重复登记不再出第二张。
+- **班组权限**：拼装点位只有本环拼装班组能改，跨班组操作一律打回（顶栏可切换当前班组演示）。
+- **返工回写**：返工结论通过 `pendingReworkRings()` 出现在管片生产页「出厂待办」，
+  待返工环数=去重后「挂未闭环返工单且环未重新验收」的环数，两处共用同一 selector，不会有两个数。
+- **存量重放**：版本键 `shield-tunnel-construction:segment-version` 升级时，
+  旧拼装记录按拼装日期升序重新过一遍，旧「已返工」环退回待拼装并补开返工单。
+
+领域规则可用以下命令做无浏览器校验（`scripts/verify-segment.mjs`，共 49 条断言）：
+
+```bash
+cd frontend
+npm run verify:segment
+```
